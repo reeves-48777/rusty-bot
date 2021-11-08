@@ -38,7 +38,27 @@ enum AudioManagerDynComponent {
 	Handler(Arc<Mutex<Call>>),
 	Connection(ChannelId),
 	JoinResult(Result<(), JoinError>),
-	SoundManager(Arc<Songbird>)
+	SoundManager(Arc<Songbird>),
+	GuildId(GuildId)
+}
+
+
+trait AudioManagerComponent {
+}
+
+impl AudioManagerComponent for Arc<Mutex<Call>> {
+}
+
+impl AudioManagerComponent for ChannelId {
+}
+
+impl AudioManagerComponent for Result<(), JoinError> {
+}
+
+impl AudioManagerComponent for Arc<Songbird> {
+}
+
+impl AudioManagerComponent for GuildId {
 }
 
 #[derive(Debug)]
@@ -76,8 +96,8 @@ pub async fn init_files_in_cache() -> HashMap<String, CachedSound> {
 
 
 struct EndPlaySound {
-	ctx: Context,
-	msg: Message
+	ctx: Mutex<Context>,
+	msg: Mutex<Message>
 }
 
 #[async_trait]
@@ -115,37 +135,32 @@ impl TypeMapKey for SoundStore {
 }
 
 pub struct AudioManager<'a> {
-	guild_id: GuildId,
 	ctx: &'a Context,
 	msg: &'a Message,
-	dyn_components: HashMap<String, AudioManagerDynComponent>,
-	connect_to: Option<ChannelId>,
-	sound_manager: Option<Arc<Songbird>>,
+	dyn_components: HashMap<&'a str, AudioManagerDynComponent>
 }
 
 impl AudioManager<'_> {
-	pub async fn init<'a>(ctx: &'a Context, msg: &'a Message) -> AudioManager {
-		let guild = msg.guild(&ctx.cache).await.unwrap();
-		let guild_id = guild.id;
-
-		let mut audio_manager = AudioManager {
-			guild_id,
+	pub fn new<'a>(ctx: &'a Context, msg: &'a Message) -> AudioManager<'a> {
+		AudioManager {
 			ctx,
 			msg,
 			dyn_components: HashMap::new(),
-			connect_to: None,
-			sound_manager: None,
-		};
+		}
+	}
+	pub async fn init<'a>(&mut self) {
+		let ctx = self.ctx;
+		let msg = self.msg;
+		let guild = msg.guild(ctx.cache.clone()).await.unwrap();
+		let guild_id = guild.id;
 
 		let channel_id = guild
 			.voice_states.get(&msg.author.id)
 			.and_then(|voice_state| voice_state.channel_id);
 
 		if let Some(channel) = channel_id {
-			audio_manager.connect_to = Some(channel);
+			self.dyn_components.insert("connect_to", AudioManagerDynComponent::Connection(channel));
 		}
-
-		audio_manager
 	}
 
 	pub async fn join(&mut self) {
@@ -188,6 +203,17 @@ impl AudioManager<'_> {
 				msg: self.msg.clone()
 			},	 
 		);
+	}
+
+	fn get_comp<'a,'b, T: dyn AudioManagerComponent>(&'a self, key: &'b str) -> Result<&T, ()> 
+	{
+		match self.dyn_components.get(key).unwrap() {
+			AudioManagerDynComponent::Connection(connect_to) => Ok(connect_to),
+			AudioManagerDynComponent::GuildId(guild_id) => Ok(guild_id),
+			AudioManagerDynComponent::Handler(handler_lock) => Ok(handler_lock),
+			AudioManagerDynComponent::JoinResult(success_reader) => Ok(success_reader),
+			_ => Err(())
+		}
 	}
 }
 fn fetch_random_from_sources(sources: &HashMap<String, CachedSound>) -> &String {
