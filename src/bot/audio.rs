@@ -1,8 +1,4 @@
-use std::{
-	collections::HashMap,
-	sync::Arc,
-	fs
-};
+use std::{collections::HashMap , fs, sync::Arc};
 
 use serenity::{
 	async_trait, 
@@ -42,25 +38,6 @@ enum AudioManagerDynComponent {
 	GuildId(GuildId)
 }
 
-
-trait AudioManagerComponent {
-}
-
-impl AudioManagerComponent for Arc<Mutex<Call>> {
-}
-
-impl AudioManagerComponent for ChannelId {
-}
-
-impl AudioManagerComponent for Result<(), JoinError> {
-}
-
-impl AudioManagerComponent for Arc<Songbird> {
-}
-
-impl AudioManagerComponent for GuildId {
-}
-
 #[derive(Debug)]
 pub enum CachedSound {
 	Compressed(Compressed),
@@ -80,7 +57,7 @@ impl From<&CachedSound> for Input {
 	}
 }
 
-pub async fn init_files_in_cache() -> HashMap<String, CachedSound> {
+pub async fn init_assets_in_cache() -> HashMap<String, CachedSound> {
 	let mut cache_map = HashMap::new();
     for file in fs::read_dir("assets").expect("assets directory not found") {
         let path = String::from(file.unwrap().path().to_str().unwrap());
@@ -89,15 +66,15 @@ pub async fn init_files_in_cache() -> HashMap<String, CachedSound> {
             Bitrate::Max
         ).expect("These parameters are well defined");
         let _ = source.raw.spawn_loader();
-        cache_map.insert(path.split('\\').last().unwrap().into(), CachedSound::Compressed(source));
+        // cache_map.insert(path.split('\\').last().unwrap().into(), CachedSound::Compressed(source));
+		cache_map.insert(path.into(), CachedSound::Compressed(source));
     }
     cache_map
 }
 
-
 struct EndPlaySound {
-	ctx: Mutex<Context>,
-	msg: Mutex<Message>
+	ctx: Context,
+	msg: Message,
 }
 
 #[async_trait]
@@ -128,7 +105,7 @@ async fn leave(ctx: &Context, msg: &Message) {
 	}
 }
 
-struct SoundStore;
+pub struct SoundStore;
 
 impl TypeMapKey for SoundStore {
 	type Value = Arc<Mutex<HashMap<String, CachedSound>>>;
@@ -137,7 +114,11 @@ impl TypeMapKey for SoundStore {
 pub struct AudioManager<'a> {
 	ctx: &'a Context,
 	msg: &'a Message,
-	dyn_components: HashMap<&'a str, AudioManagerDynComponent>
+	guild_id: Option<GuildId>,
+	connect_to: Option<ChannelId>,
+	handler_lock: Option<Arc<Mutex<Call>>>,
+	manager: Option<Arc<Songbird>>,
+	success_reader: Option<Result<(), JoinError>>
 }
 
 impl AudioManager<'_> {
@@ -145,7 +126,11 @@ impl AudioManager<'_> {
 		AudioManager {
 			ctx,
 			msg,
-			dyn_components: HashMap::new(),
+			guild_id: None,
+			connect_to: None,
+			handler_lock: None,
+			manager: None,
+			success_reader: None
 		}
 	}
 	pub async fn init<'a>(&mut self) {
@@ -159,8 +144,9 @@ impl AudioManager<'_> {
 			.and_then(|voice_state| voice_state.channel_id);
 
 		if let Some(channel) = channel_id {
-			self.dyn_components.insert("connect_to", AudioManagerDynComponent::Connection(channel));
+			self.connect_to = Some(channel)
 		}
+		self.guild_id = Some(guild_id);
 	}
 
 	pub async fn join(&mut self) {
@@ -170,20 +156,15 @@ impl AudioManager<'_> {
 		let connect_to = self.connect_to.unwrap();
 
 		let (handler_lock, success_reader) = manager
-			.join(self.guild_id, connect_to).await;
+			.join(self.guild_id.unwrap(), connect_to).await;
 
-		self.sound_manager = Some(manager);	
-		self.dyn_components.insert(String::from("handler_lock"), AudioManagerDynComponent::Handler(handler_lock));
-		self.dyn_components.insert(String::from("success_reader"), AudioManagerDynComponent::JoinResult(success_reader));
+		self.manager = Some(manager);
+		self.handler_lock = Some(handler_lock);
+		self.success_reader = Some(success_reader);
 	}
 
 	pub async fn play_random_asset(&self) {
-		let mut handler_lock = None;
-		if let AudioManagerDynComponent::Handler(hand_lock) = self.dyn_components.get("handler_lock").unwrap() {
-			handler_lock = Some(hand_lock);
-		}
-		let handler_lock = handler_lock.unwrap();
-
+		let handler_lock = self.handler_lock.as_ref().unwrap();
 		let mut handler = handler_lock.lock().await;
 
 		println!("Joined Voice Chan: {}", self.connect_to.unwrap().mention());
@@ -200,20 +181,9 @@ impl AudioManager<'_> {
 			Event::Track(TrackEvent::End),
 			EndPlaySound {
 				ctx: self.ctx.clone(),
-				msg: self.msg.clone()
+				msg: self.msg.clone(),
 			},	 
 		);
-	}
-
-	fn get_comp<'a,'b, T: dyn AudioManagerComponent>(&'a self, key: &'b str) -> Result<&T, ()> 
-	{
-		match self.dyn_components.get(key).unwrap() {
-			AudioManagerDynComponent::Connection(connect_to) => Ok(connect_to),
-			AudioManagerDynComponent::GuildId(guild_id) => Ok(guild_id),
-			AudioManagerDynComponent::Handler(handler_lock) => Ok(handler_lock),
-			AudioManagerDynComponent::JoinResult(success_reader) => Ok(success_reader),
-			_ => Err(())
-		}
 	}
 }
 fn fetch_random_from_sources(sources: &HashMap<String, CachedSound>) -> &String {

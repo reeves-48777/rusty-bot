@@ -133,9 +133,10 @@ use bot::audio::*;
 #[command]
 #[only_in(guilds)]
 async fn poomp(ctx: &Context, msg: &Message, _args:Args) -> CommandResult {
-    let mut audio_manager = AudioManager::init(ctx, msg);
+    let mut audio_manager = AudioManager::new(ctx, msg);
+    audio_manager.init().await;
     audio_manager.join().await;
-    audio_manager.play_random_asset();
+    audio_manager.play_random_asset().await;
     Ok(()) 
 }
 
