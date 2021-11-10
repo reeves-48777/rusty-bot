@@ -2,10 +2,9 @@ use std::{collections::HashMap , fs, sync::Arc};
 
 use serenity::{
 	async_trait, 
-	client::{
-		Context, EventHandler},
+	client::Context,
 		model::{
-			channel::{self, Message},
+			channel::Message,
 			id::{ChannelId, GuildId}
 		},
 		prelude::{Mentionable, TypeMapKey, Mutex}
@@ -16,7 +15,6 @@ use songbird::{
 	Event,
 	EventContext,
 	EventHandler as VoiceEventHandler,
-	SerenityInit,
 	Songbird,
 	TrackEvent,
 	driver::Bitrate,
@@ -30,13 +28,6 @@ use songbird::{
 
 
 const ASSETS_DIR: &str = "assets";
-enum AudioManagerDynComponent {
-	Handler(Arc<Mutex<Call>>),
-	Connection(ChannelId),
-	JoinResult(Result<(), JoinError>),
-	SoundManager(Arc<Songbird>),
-	GuildId(GuildId)
-}
 
 #[derive(Debug)]
 pub enum CachedSound {
@@ -59,7 +50,7 @@ impl From<&CachedSound> for Input {
 
 pub async fn init_assets_in_cache() -> HashMap<String, CachedSound> {
 	let mut cache_map = HashMap::new();
-    for file in fs::read_dir("assets").expect("assets directory not found") {
+    for file in fs::read_dir(ASSETS_DIR).expect("assets directory not found") {
         let path = String::from(file.unwrap().path().to_str().unwrap());
         let source = Compressed::new(
             input::ffmpeg(&path).await.expect("File not found"),
@@ -79,7 +70,7 @@ struct EndPlaySound {
 
 #[async_trait]
 impl VoiceEventHandler for EndPlaySound {
-	async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
+	async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
 		leave(&self.ctx, &self.msg).await;
 		None
 	}
