@@ -161,7 +161,7 @@ impl AudioManager<'_> {
 		println!("Joined Voice Chan: {}", self.connect_to.unwrap().mention());
 
 		let sources_lock = self.ctx.data.read().await.get::<SoundStore>().cloned().expect("Sound cache was initialized at startup");
-		let sources_lock_for_evt = sources_lock.clone();
+		// let sources_lock_for_evt = sources_lock.clone();
 		let sources = sources_lock.lock().await;
 		let source = sources.get(fetch_random_from_sources(&sources)).expect("handle placed into cache at startup");
 

@@ -193,6 +193,27 @@ async fn clear(ctx: &Context, msg: &Message) -> CommandResult{
     Ok(())
 }
 
+// #[command]
+// #[only_in(guilds)]
+// async fn config(ctx: &Context, msg: &Message) -> CommandResult {
+//     let mut data = &mut ctx.data.read().await.get::<ConfigStore>().unwrap();
+//     let command = String::from(msg.content.clone());
+//     let mut set = false;
+
+//     if command.contains("set") {
+//         set = true;
+//     }
+
+//     if command.contains("message_remove") {
+//         if set {
+//             if command.contains("true") {
+//                 data.lock().await.set_config(true);
+//             }
+//         }
+//     }
+//     Ok(())
+// }
+
 fn check_msg(result: SerenityResult<Message>) {
     if let Err(why) = result {
         println!("Error sending message: {:?}", why);
