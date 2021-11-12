@@ -62,6 +62,8 @@ impl EventHandler for Handler {
     // on the other hand it will feel weird on usage (might have to ask users for some feedback on this)
     // we could also not delete command after calling them, but in this case making a channel especially for the bot could be necessary, because it will mess general channels
     // Another way to solve this could be to just not reply to the message and write a message on the channel by mentioning the user
+    // NOTE: Moving the "command handler" here could be a good idea
+    // like new_message.contains("$hb") { // code }
     async fn message(&self, ctx: Context, new_message: Message) {
         let msgs_config = &ctx.data.read().await.get::<ConfigStore>().cloned().unwrap();
         let data = &ctx.data.read().await.get::<CommandNameStore>().cloned().unwrap();
