@@ -20,3 +20,10 @@ features = [ "cache", "framework", "standard_framework", "voice", "http", "rustl
 [dependencies.tokio]
 version = "*"
 features = ["macros","rt-multi-thread", "signal"]
+
+
+[profile.dev]
+opt-level=1
+
+[profile.release]
+opt-level=3

@@ -58,7 +58,7 @@ pub async fn init_assets_in_cache() -> HashMap<String, CachedSound> {
         ).expect("These parameters are well defined");
         let _ = source.raw.spawn_loader();
         // cache_map.insert(path.split('\\').last().unwrap().into(), CachedSound::Compressed(source));
-		cache_map.insert(path.into(), CachedSound::Compressed(source));
+		cache_map.insert(path, CachedSound::Compressed(source));
     }
     cache_map
 }
@@ -134,6 +134,15 @@ impl AudioManager<'_> {
 			.voice_states.get(&msg.author.id)
 			.and_then(|voice_state| voice_state.channel_id);
 
+		match channel_id {
+			Some(channel) => {
+				self.connect_to = Some(channel)
+			},
+			None => {
+				msg.channel_id.say(&ctx.http, "You need to be in a voice channel to call this command (for now)").await.unwrap();
+			}
+		}
+
 		if let Some(channel) = channel_id {
 			self.connect_to = Some(channel)
 		}
@@ -145,6 +154,7 @@ impl AudioManager<'_> {
 			.expect("Songbird voice client registered at initialization").clone();
 
 		let connect_to = self.connect_to.unwrap();
+		
 
 		let (handler_lock, success_reader) = manager
 			.join(self.guild_id.unwrap(), connect_to).await;
