@@ -1,10 +1,3 @@
-// TODO work on the implementation of the configuration,
-// this struct will be used for the config ** command (e.g: `config set`)
-// examples:
-// 		$config set bot_muted true/false
-// 		$config set clear_calls true/false
-//		$config set flood_delay xxx
-
 /// Contains bot settings
 /// 
 /// clear_calls: used to check if the command calls 
@@ -45,7 +38,7 @@ impl Configuration {
 	pub fn clear_calls(&mut self, new_value: bool) {
 		self.clear_calls = new_value;
 	}
-
+	
 	pub fn muted(&self) -> bool {
 		self.muted
 	}
@@ -73,6 +66,7 @@ impl Default for Configuration {
 	}
 }
 
+/// Builder pattern for Configuration
 pub struct ConfigBuilder {
 	clear_command_calls: Option<bool>,
 	mute_bot: Option<bool>,
@@ -80,6 +74,7 @@ pub struct ConfigBuilder {
 }
 
 impl ConfigBuilder {
+	/// Constructor for ConfigBuilder
 	pub fn new() -> Self {
 		Self {
 			clear_command_calls: None,
@@ -87,20 +82,23 @@ impl ConfigBuilder {
 			flood_delay: None
 		}
 	}
-
+	/// Configure whether the command calls should be clear or not
 	pub fn clear_calls(&mut self, new_value: bool) -> &mut Self{
 		self.clear_command_calls = Some(new_value);
 		self
 	}
+	/// Configure whether the bot has to be mute in voice channel
 	pub fn mute_bot(&mut self, new_value: bool) -> &mut Self {
 		self.mute_bot = Some(new_value);
 		self
 	}
+	/// Sets the delay for the flood command
 	pub fn flood_delay(&mut self, new_value: Option<f32>) -> &mut Self {
 		self.flood_delay = new_value;
 		self
 	}
 
+	/// Build function
 	pub fn build(&self) -> Configuration {
 		let mut new_conf = Configuration::new();
 

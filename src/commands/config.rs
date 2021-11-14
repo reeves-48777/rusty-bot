@@ -9,21 +9,19 @@ use crate::bot::config::*;
 // Sets the prefixes config and conf for this group
 // allows us to call commands that will configure / change the behaviour of the bot
 // via `$config cmd` or `$conf cmd` instead of just `$`
-#[prefixes("config", "conf")]
-#[description = "Group with commands that allows to configure the bot"]
-#[summary = "Config stuff"]
+#[prefixes("config", "conf", "c")]
+#[description = "Commands that allows you to change or see the bot's current config"]
 #[commands(set,show)]
 struct Config;
 
 
 #[command]
-async fn config_help(_ctx: &Context, _msg: &Message) -> CommandResult {
-	todo!()
-}
-
-
-#[command]
-#[aliases("s")]
+#[description = "change bot settings and `set` them to the new value"]
+#[usage = "[clear_calls, mute, flood_delay] true/false or x (for flood_delay in ms)"]
+#[example = "clear_calls true"]
+#[example = "flood_delay 1000"]
+#[min_args(2)]
+// NOTE might use sub_commands macro for this (see documentation of serenity::framework::standard::macros::command)
 async fn set(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 	let setting = args.single::<String>().unwrap();
 	let value = args.single::<String>().unwrap();
@@ -69,6 +67,7 @@ async fn set(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 }
 
 #[command]
+#[description = "Shows the current bot config"]
 async fn show(ctx: &Context, msg: &Message) -> CommandResult {
 	println!("calling show_config command");
 	let bot_conf_lock = {
@@ -77,8 +76,27 @@ async fn show(ctx: &Context, msg: &Message) -> CommandResult {
 	};
 	{
 		let bot_conf = bot_conf_lock.read().await;
-		// TODO use embed instead (see CreateMessageBuilder example in serenity repo)
-		msg.channel_id.say(&ctx.http, format!("```\nBot configuration\n\nclear_command_calls: {}\nbot_muted: {}\nflood_delay: {}\n```",bot_conf.get_clear_calls(), bot_conf.muted(), bot_conf.get_flood_delay())).await?;
+
+		let msg = msg
+			.channel_id
+			.send_message(&ctx.http, |m| {
+				m.embed(|e| {
+					e.title("Bot Configuration");
+					e.fields(vec![
+						("clear_command_calls", format!("{}", bot_conf.get_clear_calls()), false),
+						("muted", format!("{}", bot_conf.muted()), false),
+						("flood_delay", format!("{} ms", bot_conf.get_flood_delay()), false)
+					]);
+					e.color(0x33ddff);
+
+					e
+				});
+				m
+			}).await;
+
+		if let Err(why) = msg {
+			println!("Error sending message: {:?}",why);
+		}
 	}
 	Ok(())
 }

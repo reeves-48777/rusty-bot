@@ -1,49 +1,65 @@
 // ---------- IMPORTS ---------- //
-use std::{env, sync::Arc};
+use std::{collections::HashSet, env, sync::Arc};
 use songbird::SerenityInit;
 
 use serenity::
-{
-    Result as SerenityResult,
-    client::{ 
+{Result as SerenityResult, client::{ 
         Client,
         Context,
-    },
-    framework::
-    {
-        StandardFramework,
-        standard::
-        {
-            Args,
-            CommandResult,
-            macros::{command, group}
-        }
-    }, 
-    model::{channel::Message}, 
-    prelude::*,
-    utils::MessageBuilder,
-};
+    }, framework::
+    {StandardFramework, standard::
+        {Args, CommandGroup, CommandResult, HelpOptions, help_commands, macros::{command, group}}}, http::Http, model::{channel::Message, id::UserId}, prelude::*, utils::MessageBuilder};
+
+use serenity::framework::standard::macros::{help, hook};
 
 mod bot;
+mod hooks;
 mod commands;
 
 use bot::*;
 use commands::config::CONFIG_GROUP;
+use commands::help::MY_HELP;
+use commands::general::GENERAL_GROUP;
+
+use bot::audio::{SoundStore, init_assets_in_cache};
 
 
-#[group]
-#[commands(mooscles, poomp, flood)]
-struct General;
+#[hook]
+async fn unknown_command(_ctx: &Context, _msg: &Message, unknown_command_name: &str) {
+    println!("Could not find command named '{}'", unknown_command_name);
+}
+
 
 // ---------- MAIN FUNCTION ----------- //
 #[tokio::main]
 async fn main() {
     //tracing_subscriber::fmt::init();
-
     let token = env::var("DISCORD_BOT_TOKEN").expect("token env var not set");
 
+    let http = Http::new_with_token(&token);
+
+    let (owners, _bot_id) = match http.get_current_application_info().await {
+        Ok(info) => {
+            let mut owners = HashSet::new();
+            if let Some(team) = info.team {
+                owners.insert(team.owner_user_id);
+            } else {
+                owners.insert(info.owner.id);
+            }
+            match http.get_current_user().await {
+                Ok(bot_id) => (owners, bot_id.id),
+                Err(why) => panic!("Could not access the bot id: {:?}",why),
+            }
+        },
+        Err(why) => panic!("Could not get application info: {:?}",why)
+    };
+
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix("$"))
+        .configure(|c| c
+                    .prefix("$")
+                    .owners(owners))
+        .unrecognised_command(unknown_command)
+        .help(&MY_HELP)
         .group(&GENERAL_GROUP)
         .group(&CONFIG_GROUP);
 
@@ -70,68 +86,6 @@ async fn main() {
 
     tokio::signal::ctrl_c().await.unwrap();
     println!("Ctrl-C received, shutting down");
-}
-
-// ------------ FUNCTIONS ----------- //
-
-#[command]
-async fn mooscles(ctx: &Context, msg: &Message) -> CommandResult {
-    msg.channel_id.say(&ctx.http, "COCA COLA ESPUMAAA").await?;
-    Ok(())
-}
-
-use bot::{audio::*};
-#[command]
-#[only_in(guilds)]
-async fn poomp(ctx: &Context, msg: &Message, _args:Args) -> CommandResult {
-    // remove_command_msg(ctx, msg).await;
-    let mut audio_manager = AudioManager::new(ctx, msg);
-    audio_manager.init().await;
-    audio_manager.join().await;
-    audio_manager.play_random_asset().await;
-    Ok(()) 
-}
-
-
-use std::num::{ParseIntError, IntErrorKind};
-#[command]
-#[only_in(guilds)]
-// NOTE: may check if caching can improve flood (like not 'blocking' after 5 messages) 
-async fn flood(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let floods: Result<i32, ParseIntError> = args.raw().last().unwrap().parse();
-
-    match floods {
-        Err(e) => {
-            match e.kind() {
-                IntErrorKind::Empty | IntErrorKind::InvalidDigit => {
-                    msg.channel_id.say(&ctx.http, "Il faut saisir un nombre apres les mentions pour flood espece de fils de truite").await.unwrap();
-                },
-                _ => {
-                    eprintln!("An error occured: {}", e);
-                } 
-            }
-        },
-        Ok(n) => {
-            let floods = n;
-            let targets = &msg.mentions;
-
-            for _ in 0..floods {
-                for target in targets.iter() {
-                    let content = MessageBuilder::new().push(target).build();
-                    msg.channel_id.say(&ctx.http, content).await.unwrap();
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-#[command]
-#[only_in(guilds)]
-// TODO
-// this command has to clear all messages sent by the bot or the commands sent by the mentionned user 
-async fn clear(_ctx: &Context, _msg: &Message) -> CommandResult{
-    todo!();
 }
 
 fn _check_msg(result: SerenityResult<Message>) {

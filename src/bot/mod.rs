@@ -4,8 +4,14 @@ pub mod storage;
 pub mod handler;
 
 pub use audio::AudioManager;
-pub use config::{ ConfigBuilder, ConfigStore };
+pub use config::{ ConfigBuilder, ConfigStore, Configuration };
 pub use handler::Handler;
+
+pub struct Bot<'a> {
+	audio_manager: AudioManager<'a>,
+	handler: Handler,
+	config: Configuration
+}
 
 // TODO add a StorageManager struct that will fetch assets from the google drive api
 // NOTE this is the best way since the repos will be lighter and contains less bloat

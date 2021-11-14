@@ -10,6 +10,7 @@ pub struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
+    // find a way with hooks or maybe before and after
     async fn message(&self, ctx: Context, new_message: Message) {
         let msgs_config = &ctx.data.read().await.get::<ConfigStore>().unwrap().clone();
         let mut contains_command = false;
