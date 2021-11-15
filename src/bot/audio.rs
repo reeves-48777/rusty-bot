@@ -7,7 +7,7 @@ use serenity::{
 			channel::Message,
 			id::{ChannelId, GuildId}
 		},
-		prelude::{Mentionable, TypeMapKey, Mutex}
+		prelude::{TypeMapKey, Mutex}
 };
 
 use songbird::{
@@ -168,7 +168,7 @@ impl AudioManager<'_> {
 		let handler_lock = self.handler_lock.as_ref().unwrap();
 		let mut handler = handler_lock.lock().await;
 
-		println!("Joined Voice Chan: {}", self.connect_to.unwrap().mention());
+		println!("Joined Voice Chan: {}", self.connect_to.unwrap().name(&self.ctx.cache).await.unwrap());
 
 		let sources_lock = self.ctx.data.read().await.get::<SoundStore>().cloned().expect("Sound cache was initialized at startup");
 		// let sources_lock_for_evt = sources_lock.clone();

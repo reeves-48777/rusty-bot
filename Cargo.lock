@@ -266,6 +266,7 @@ dependencies = [
 name = "discord-bot"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "rand 0.8.4",
  "serenity",
  "songbird",

@@ -1,16 +1,13 @@
 // ---------- IMPORTS ---------- //
 use std::{collections::HashSet, env, sync::Arc};
+use tokio::sync::{Mutex, RwLock};
 use songbird::SerenityInit;
 
-use serenity::
-{Result as SerenityResult, client::{ 
-        Client,
-        Context,
-    }, framework::
-    {StandardFramework, standard::
-        {Args, CommandGroup, CommandResult, HelpOptions, help_commands, macros::{command, group}}}, http::Http, model::{channel::Message, id::UserId}, prelude::*, utils::MessageBuilder};
-
-use serenity::framework::standard::macros::{help, hook};
+use serenity::Result as SerenityResult;
+use serenity::client::Client;
+use serenity::framework::StandardFramework;
+use serenity::http::Http;
+use serenity::model::channel::Message;
 
 mod bot;
 mod hooks;
@@ -21,16 +18,11 @@ use commands::config::CONFIG_GROUP;
 use commands::help::MY_HELP;
 use commands::general::GENERAL_GROUP;
 
+use hooks::*;
+
 use bot::audio::{SoundStore, init_assets_in_cache};
 
 
-#[hook]
-async fn unknown_command(_ctx: &Context, _msg: &Message, unknown_command_name: &str) {
-    println!("Could not find command named '{}'", unknown_command_name);
-}
-
-
-// ---------- MAIN FUNCTION ----------- //
 #[tokio::main]
 async fn main() {
     //tracing_subscriber::fmt::init();

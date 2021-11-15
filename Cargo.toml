@@ -6,19 +6,20 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tracing = "*"
-tracing-subscriber = "*"
-tracing-futures = "*"
+tracing = "0.1.29"
+tracing-subscriber = "0.3.1"
+tracing-futures = "0.2.5"
 
-rand = "*"
-songbird = "*"
+rand = "0.8.4"
+songbird = "0.2.0"
+chrono = "0.4"
 
 [dependencies.serenity]
 version = "0.10.9"
 features = [ "cache", "framework", "standard_framework", "voice", "http", "rustls_backend"]
 
 [dependencies.tokio]
-version = "*"
+version = "1.13.0"
 features = ["macros","rt-multi-thread", "signal"]
 
 

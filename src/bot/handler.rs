@@ -13,15 +13,15 @@ impl EventHandler for Handler {
     // find a way with hooks or maybe before and after
     async fn message(&self, ctx: Context, new_message: Message) {
         let msgs_config = &ctx.data.read().await.get::<ConfigStore>().unwrap().clone();
-        let mut contains_command = false;
+        let mut cmd = false;
         
         for command_name in BOT_COMMANDS.iter() {
-            if new_message.content.contains(command_name) {
-                contains_command = true
+            if new_message.content.starts_with(command_name) {
+                cmd = true
             }
         }
         
-        if contains_command && msgs_config.read().await.get_clear_calls() {
+        if cmd && msgs_config.read().await.get_clear_calls() {
             new_message.delete(ctx.http).await.unwrap();
         }
     }
