@@ -16,7 +16,7 @@ chrono = "0.4"
 
 [dependencies.serenity]
 version = "0.10.9"
-features = [ "cache", "framework", "standard_framework", "voice", "http", "rustls_backend"]
+features = [ "cache", "framework", "standard_framework", "http", "rustls_backend"]
 
 [dependencies.tokio]
 version = "1.13.0"

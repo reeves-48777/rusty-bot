@@ -20,16 +20,16 @@ use commands::general::GENERAL_GROUP;
 
 use hooks::*;
 
-use bot::audio::{SoundStore, init_assets_in_cache};
+use bot::audio::{SoundStore, init_cache_map};
 
 
 #[tokio::main]
 async fn main() {
     //tracing_subscriber::fmt::init();
     let token = env::var("DISCORD_BOT_TOKEN").expect("token env var not set");
-
+	
     let http = Http::new_with_token(&token);
-
+	
     let (owners, _bot_id) = match http.get_current_application_info().await {
         Ok(info) => {
             let mut owners = HashSet::new();
@@ -45,37 +45,39 @@ async fn main() {
         },
         Err(why) => panic!("Could not get application info: {:?}",why)
     };
-
+	
     let framework = StandardFramework::new()
         .configure(|c| c
-                    .prefix("$")
-                    .owners(owners))
+				   .prefix("$")
+				   .owners(owners))
         .unrecognised_command(unknown_command)
         .help(&MY_HELP)
         .group(&GENERAL_GROUP)
         .group(&CONFIG_GROUP);
-
+	
     let mut client = Client::builder(token)
         .event_handler(Handler)
         .framework(framework)
         .register_songbird()
         .await
         .expect("Error creating client");
-
+	
     {
         let mut data = client.data.write().await;
-
-        let audio_map = init_assets_in_cache().await;
+		
+        // NOTE audio map should be in the bot struct
+        // and should be initialized empty
+        let audio_map = init_cache_map();
         let bot_config = ConfigBuilder::new().build();
-
-        data.insert::<SoundStore>(Arc::new(Mutex::new(audio_map)));
+		
+        data.insert::<SoundStore>(Arc::new(RwLock::new(audio_map)));
         data.insert::<ConfigStore>(Arc::new(RwLock::new(bot_config)));
     }
-
-    tokio::spawn(async move {
-        let _ = client.start().await.map_err(|why| println!("Client ended: {:?}", why));
-    });
-
+	
+    tokio::spawn(async move { 
+					 let _ = client.start().await.map_err(|why| println!("Client ended: {:?}", why));
+				 });
+	
     tokio::signal::ctrl_c().await.unwrap();
     println!("Ctrl-C received, shutting down");
 }
