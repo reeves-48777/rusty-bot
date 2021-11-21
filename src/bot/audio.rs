@@ -1,4 +1,4 @@
-use std::{collections::HashMap , fs};
+use std::{collections::HashMap, fs::{self, DirEntry}};
 use tokio::sync::{RwLock,Mutex};
 use std::sync::Arc;
 
@@ -54,8 +54,8 @@ impl From<&CachedSound> for Input {
 
 
 struct EndPlaySound {
-	ctx: Context,
-	msg: Message,
+	ctx: Arc<Context>,
+	msg: Arc<Message>,
 }
 
 #[async_trait]
@@ -93,23 +93,26 @@ impl TypeMapKey for SoundStore {
 }
 
 // NOTE trying some stuff here
-pub struct AudioManager<'a> {
-ctx: &'a Context,
-msg: &'a Message,
-audio_cache_map: Arc<RwLock<HashMap<String, CachedSound>>>,
-guild_id: Option<GuildId>,
-connect_to: Option<ChannelId>,
-handler_lock: Option<Arc<Mutex<Call>>>,
-manager: Option<Arc<Songbird>>,
-success_reader: Option<Result<(), JoinError>>
+pub struct AudioManager {
+    ctx: Arc<Context>,
+    msg: Arc<Message>,
+    assets_paths: Arc<Vec<String>>,
+    audio_cache_map_lock: Arc<RwLock<HashMap<String, CachedSound>>>,
+    guild_id: Option<GuildId>,
+    connect_to: Option<ChannelId>,
+    handler_lock: Option<Arc<Mutex<Call>>>,
+    manager: Option<Arc<Songbird>>,
+    success_reader: Option<Result<(), JoinError>>
 }
 
-impl AudioManager<'_> {
-    pub fn new<'a>(ctx: &'a Context, msg: &'a Message) -> AudioManager<'a> {
+impl AudioManager {
+    pub fn new(ctx: Context, msg: Message) -> AudioManager {
+        let assets: Vec<String> = fs::read_dir(ASSETS_DIR).expect("Assets directory exists").map(|f| f.unwrap().path().to_str().unwrap().to_string()).collect();
         AudioManager {
-            ctx,
-            msg,
-            audio_cache_map: Arc::new(RwLock::new(HashMap::new())),
+            ctx: Arc::new(ctx),
+            msg: Arc::new(msg),
+            assets_paths: Arc::new(assets),
+            audio_cache_map_lock: Arc::try_new_uninit().unwrap(),
             guild_id: None,
             connect_to: None,
             handler_lock: None,
@@ -118,11 +121,13 @@ impl AudioManager<'_> {
         }
     }
 
-    pub async fn init<'a>(&mut self) {
+    /// inits the audio manager struct
+    pub async fn init(&mut self) {
         let ctx = self.ctx;
         let msg = self.msg;
         let guild = msg.guild(ctx.cache.clone()).await.unwrap();
         let guild_id = guild.id;
+        self.audio_cache_map_lock = self.ctx.data.read().await.get::<SoundStore>().unwrap();
 
         let channel_id = guild
             .voice_states.get(&msg.author.id)
@@ -150,7 +155,6 @@ impl AudioManager<'_> {
         
         let connect_to = self.connect_to.unwrap();
         
-        
         let (handler_lock, success_reader) = manager
             .join(self.guild_id.unwrap(), connect_to).await;
         
@@ -160,9 +164,6 @@ impl AudioManager<'_> {
     }
 
     /// Choose a random asset from the CacheMap and play it
-    // NOTE that this panics on self.connect_to.unwrap() when there is no connection to a voice
-    // channel (e.g: the user is not connected to any of them)
-    // might fix it with error handling
     pub async fn play_random_asset(&self) {
         let handler_lock = self.handler_lock.as_ref().unwrap();
         let mut handler = handler_lock.lock().await;
@@ -181,7 +182,7 @@ impl AudioManager<'_> {
         };
         // let sources_lock_for_evt = sources_lock.clone();
         // let sources_lock = self.ctx.data.read().await.get::<SoundStore>().cloned().expect("Sound cache was initialized at startup");
-        let source = pick_random_asset(sources_lock).await;
+        let source = self.pick_random_asset(sources_lock).await;
         
         let sound = handler.play_source(source.into());
         let _ = sound.set_volume(1.0);
@@ -193,52 +194,43 @@ impl AudioManager<'_> {
                 msg: self.msg.clone(),
         });
     }
+
+    /// picks a random asset from the assets directory
+    async fn pick_random_asset(&mut self, audio_cache_map_lock: Arc<RwLock<HashMap<String, CachedSound>>>) -> &CachedSound {
+        let rand_path = self.assets_paths[rand::random::<usize>() % self.assets_paths.len()].clone();
+        println!("Using file: {}", &rand_path);
+
+        let sources = {
+            audio_cache_map_lock.read().await
+        };
+        
+        let fetched = sources.get(&rand_path);
+
+        let source = match fetched {
+            Some(s) => s,
+            None => &create_asset_cache_it_and_return(self.audio_cache_map_lock.clone(), rand_path).await,
+        };
+        source
+    }
 }
 
-// NOTE(thomas) Imo it is better to just init the hashmap first and then caching the files the first
-// time we put them in memory
-pub async fn create_asset_and_cache_it(audio_cache_map_lock: RwLock<HashMap<String, CachedSound>>, file_path: String) -> CachedSound {
-
+/// creates an asset from a file_path and cache it into the assets_map
+pub async fn create_asset_cache_it_and_return(audio_cache_map_lock: Arc<RwLock<HashMap<String, CachedSound>>>, file_path: String) -> CachedSound {
     let source = Compressed::new(
-		input::ffmpeg(&file_path).await.expect("File exists"),
-		Bitrate::Max
-	).expect("These parameters are well defined");
-
+        input::ffmpeg(&file_path).await.expect("File exists"),
+        Bitrate::Max
+    ).expect("These parameters are well defined");
     let _ = source.raw.spawn_loader();
-        // cache_map.insert(path.split('\\').last().unwrap().into(), CachedSound::Compressed(source));
     let cached = CachedSound::Compressed(source);
-
     {
         let mut audio_cache_map = audio_cache_map_lock.write().await;
-        audio_cache_map.insert(file_path, cached.clone());
+        audio_cache_map.insert(String::from(file_path), cached.clone());
     }
-
     cached
 }
 
-async fn pick_random_asset(lock: Arc<RwLock<HashMap<String, CachedSound>>>) -> CachedSound {
-    let mut assets = Vec::new();
 
-    for file in fs::read_dir(ASSETS_DIR).expect("Assets directory exists") {
-        assets.push(String::from(file.unwrap().path().to_str().unwrap()));
-    }
 
-    let rand_path = assets[rand::random::<usize>() % assets.len()];
-    println!("Using file: {}", &rand_path);
-
-    let sources = {
-        lock.read().await
-    };
-    
-    let fetched = sources.get(&rand_path);
-
-    let source = match fetched {
-        Some(s) => s,
-        None => &create_asset_and_cache_it(lock, rand_path).await,
-    };
-
-    source
-}
 
 fn fetch_random_from_sources(sources: &HashMap<String, CachedSound>) -> &String {
     let keys: Vec<&String> = sources.keys().collect();

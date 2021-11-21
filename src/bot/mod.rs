@@ -7,8 +7,8 @@ pub use audio::AudioManager;
 pub use config::{ ConfigBuilder, ConfigStore, Configuration };
 pub use handler::Handler;
 
-pub struct Bot<'a> {
-	audio_manager: AudioManager<'a>,
+pub struct Bot {
+	audio_manager: AudioManager,
 	handler: Handler,
 	config: Configuration
 }
