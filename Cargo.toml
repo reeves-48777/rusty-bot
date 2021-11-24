@@ -13,6 +13,7 @@ tracing-futures = "0.2.5"
 rand = "0.8.4"
 songbird = "0.2.0"
 chrono = "0.4"
+colored = "2.0.0"
 
 [dependencies.serenity]
 version = "0.10.9"

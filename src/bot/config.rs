@@ -11,7 +11,7 @@
 pub struct Configuration {
 	clear_calls: bool,
 	muted: bool,
-	flood_delay: f32
+	flood_delay: f32,
 }
 
 impl Configuration {

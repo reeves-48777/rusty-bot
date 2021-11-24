@@ -23,6 +23,8 @@ impl EventHandler for Handler {
         
         if cmd && msgs_config.read().await.get_clear_calls() {
             new_message.delete(ctx.http).await.unwrap();
+        } else {
+            println!("[{}] <{}> {}", new_message.timestamp, new_message.author.name, new_message.content);
         }
     }
 
