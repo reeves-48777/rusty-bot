@@ -1,0 +1,18 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4"
+audio = {path = "../audio"}
+
+[dependencies.serenity]
+version = "0.10.9"
+features = [ "cache", "framework", "standard_framework", "http", "rustls_backend"]
+
+[dependencies.tokio]
+version = "1.13.0"
+features = ["macros","rt-multi-thread", "signal"]

@@ -1,19 +1,15 @@
-use serenity::framework::standard::{ macros::{group,command}, Args, CommandResult };
-use serenity::model::prelude::*;
-use serenity::prelude::*;
+///! Contains the code for the set command and it's sub commands
+/// ## List of subcommands
+/// - mute
+/// - flood_delay
+/// - clear_calls
+///
 
-use crate::bot::config::*;
+use serenity::framework::standard::{macros::command, Args, CommandResult };
+use serenity::model::prelude::Message;
+use serenity::prelude::Context;
 
-
-#[group]
-// Sets the prefixes config and conf for this group
-// allows us to call commands that will configure / change the behaviour of the bot
-// via `$config cmd` or `$conf cmd` instead of just `$`
-#[prefixes("config", "conf")]
-#[description = "Commands that allows you to change or see the bot's current config"]
-#[commands(set,show)]
-struct Config;
-
+use crate::ConfigStore;
 
 #[command]
 #[description = "change bot settings and `set` them to the new value"]
@@ -66,37 +62,3 @@ async fn set(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 	Ok(())
 }
 
-#[command]
-#[description = "Shows the current bot config"]
-async fn show(ctx: &Context, msg: &Message) -> CommandResult {
-	println!("calling show_config command");
-	let bot_conf_lock = {
-		let data_read = ctx.data.read().await;
-		data_read.get::<ConfigStore>().unwrap().clone()
-	};
-	{
-		let bot_conf = bot_conf_lock.read().await;
-
-		let msg = msg
-			.channel_id
-			.send_message(&ctx.http, |m| {
-				m.embed(|e| {
-					e.title("Bot Configuration");
-					e.fields(vec![
-						("clear_command_calls", format!("{}", bot_conf.get_clear_calls()), false),
-						("muted", format!("{}", bot_conf.muted()), false),
-						("flood_delay", format!("{} ms", bot_conf.get_flood_delay()), false)
-					]);
-					e.color(0x33ddff);
-
-					e
-				});
-				m
-			}).await;
-
-		if let Err(why) = msg {
-			println!("Error sending message: {:?}",why);
-		}
-	}
-	Ok(())
-}
