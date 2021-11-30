@@ -8,18 +8,18 @@ pub mod clear;
 pub mod flood;
 pub mod mooscles;
 
-
 pub use help::MY_HELP;
 
+
 #[group]
-#[commands(mooscles, poomp, flood, clear)]
+#[commands(mooscles,flood,clear)]
 #[only_in(guilds)]
 #[description = "General commands for the bot"]
 struct General;
 
+
 use clear::CLEAR_COMMAND;
 use flood::FLOOD_COMMAND;
 use mooscles::MOOSCLES_COMMAND;
-use audio::commands::poomp::POOMP_COMMAND;
 
 

@@ -1,14 +1,15 @@
 [package]
-name = "common"
+name = "bot"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4"
-audio = {path = "../audio"}
-
+songbird = "0.2.0"
+audio = { path = "../audio"}
+config = { path = "../config"}
+common = { path = "../common"}
 
 
 [dependencies.serenity]

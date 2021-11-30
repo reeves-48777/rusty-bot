@@ -1,5 +1,10 @@
-pub mod hooks;
-pub mod commands;
+pub mod bot;
+pub mod handler;
+
+
+pub use bot::CommonBot;
+pub use bot::Bot;
+
 
 
 #[cfg(test)]

@@ -24,7 +24,7 @@ pub struct AudioManager {
     temp_asset: Option<Box<CachedSound>>
 }
 
-// Rework on this
+//TODO Rework on this
 impl AudioManager {
     pub fn new(ctx: Context, msg: Message) -> Self {
         let assets: Vec<String> = fs::read_dir(ASSETS_DIR).expect("Assets directory exists").map(|f| f.unwrap().path().to_str().unwrap().to_string()).collect();
@@ -128,9 +128,11 @@ impl AudioManager {
         let sources = self.audio_cache_map_lock.unwrap().read().await;
         match sources.get(&asset_name) {
             Some(source) => {
-
+                todo!();
             },
-            None => {}
+            None => { 
+                todo!();
+            }
         }
     }
 

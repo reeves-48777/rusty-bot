@@ -5,7 +5,6 @@ use serenity::async_trait;
 
 use std::sync::Arc;
 
-
 pub struct EndPlaySound {
 	ctx: Arc<Context>,
 	msg: Arc<Message>,
@@ -18,7 +17,6 @@ impl VoiceEventHandler for EndPlaySound {
 				 None
     }
 }
-
 async fn leave(ctx: &Context, msg: &Message) {
 	let guild = msg.guild(&ctx.cache).await.unwrap();
 	let guild_id = guild.id;
