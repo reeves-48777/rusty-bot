@@ -1,5 +1,5 @@
 use super::{SoundStore,CachedSound, ASSETS_DIR, EndPlaySound};
-use songbird::{self, TrackEvent, Songbird, Call, Event, driver::Bitrate};
+use songbird::{self, TrackEvent, Songbird, Call, Event, driver::Bitrate, ffmpeg};
 use songbird::input::{cached::Compressed, self};
 
 use serenity::prelude::Context;
@@ -11,33 +11,47 @@ use tokio::sync::{RwLock, Mutex};
 use std::sync::Arc;
 use std::{collections::HashMap, fs};
 
+type Queue = HashMap<String, CachedSound>;
+
+struct SoundQueue {
+    prev: Queue,
+    next: Queue,
+}
+
+impl SoundQueue {
+    fn new() -> Self {
+        Self {
+            prev: HashMap::new(),
+            next: HashMap::new(),
+        }
+    }
+}
+
 
 pub struct AudioManager {
     ctx: Arc<Context>,
     msg: Arc<Message>,
-    assets_paths: Arc<Vec<String>>,
-    audio_cache_map_lock: Option<Arc<RwLock<HashMap<String, CachedSound>>>>,
+    assets: Arc<Vec<String>>,
     guild_id: Option<GuildId>,
     connect_to: Option<ChannelId>,
     handler_lock: Option<Arc<Mutex<Call>>>,
     manager: Option<Arc<Songbird>>,
-    temp_asset: Option<Box<CachedSound>>
+    queue: SoundQueue,
 }
 
 //TODO Rework on this
 impl AudioManager {
-    pub fn new(ctx: Context, msg: Message) -> Self {
+    pub fn new(ctx: Arc<Context>, msg: Arc<Message>) -> Self {
         let assets: Vec<String> = fs::read_dir(ASSETS_DIR).expect("Assets directory exists").map(|f| f.unwrap().path().to_str().unwrap().to_string()).collect();
         Self {
-            ctx: Arc::new(ctx),
-            msg: Arc::new(msg),
-            assets_paths: Arc::new(assets),
-            audio_cache_map_lock: None,
+            ctx,
+            msg,
+            assets: Arc::new(assets),
             guild_id: None,
             connect_to: None,
             handler_lock: None,
             manager: None,
-            temp_asset: None
+            queue: SoundQueue::new(),
         }
     }
 
@@ -162,7 +176,16 @@ fn fetch_random_from_sources(sources: &HashMap<String, CachedSound>) -> &String 
     source_name
 }
 
-pub fn init_cache_map() -> HashMap<String, CachedSound> {
-    let cache_map: HashMap<String, CachedSound> = HashMap::new();
+pub fn init_cache_map(am: AudioManager) -> HashMap<String, CachedSound> {
+    let mut cache_map: HashMap<String, CachedSound> = HashMap::new();
+    for filename in am.assets {
+        let data = Compressed::new(
+            input::ffmpeg(&filename).await.expect("File exists"),
+            Bitrate::Max,   //todo check the bitrate of the file and enter the same here
+        ).expect("These parameters are well defined");
+        let _ = source.raw.spawn_loader();
+        let cached = CachedSound::Compressed(data);
+        cache_map.insert(filename.clone(), cached);
+    }
     cache_map
 }
