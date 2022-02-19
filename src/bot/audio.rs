@@ -48,6 +48,8 @@ impl From<&CachedSound> for Input {
 	}
 }
 
+type SoundQueue = Vec<CachedSound>;
+
 pub async fn init_assets_in_cache() -> HashMap<String, CachedSound> {
 	let mut cache_map = HashMap::new();
     for file in fs::read_dir(ASSETS_DIR).expect("assets directory not found") {
@@ -109,7 +111,8 @@ pub struct AudioManager<'a> {
 	connect_to: Option<ChannelId>,
 	handler_lock: Option<Arc<Mutex<Call>>>,
 	manager: Option<Arc<Songbird>>,
-	success_reader: Option<Result<(), JoinError>>
+	success_reader: Option<Result<(), JoinError>>,
+	sound_queues: Vec<SoundQueue>,
 }
 
 impl AudioManager<'_> {
@@ -121,7 +124,8 @@ impl AudioManager<'_> {
 			connect_to: None,
 			handler_lock: None,
 			manager: None,
-			success_reader: None
+			success_reader: None,
+			sound_queues: Vec::new(),
 		}
 	}
 	pub async fn init<'a>(&mut self) {
