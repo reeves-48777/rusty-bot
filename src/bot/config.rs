@@ -132,32 +132,35 @@ impl ConfigBuilder {
 			assets_directory_path: None
 		}
 	}
+	#[allow(dead_code)]
 	/// Configure whether the command calls should be clear or not
 	pub fn clear_calls(&mut self, new_value: bool) -> &mut Self{
 		self.clear_command_calls = Some(new_value);
 		self
 	}
+	#[allow(dead_code)]
 	/// Configure whether the bot has to be mute in voice channel
 	pub fn mute_bot(&mut self, new_value: bool) -> &mut Self {
 		self.mute_bot = Some(new_value);
 		self
 	}
+	#[allow(dead_code)]
 	/// Sets the delay for the flood command
 	pub fn flood_delay(&mut self, new_value: Option<f32>) -> &mut Self {
 		self.flood_delay = new_value;
 		self
 	}
-
+	#[allow(dead_code)]
 	pub fn maintained(&mut self, new_value: Option<bool>) -> &mut Self {
 		self.maintained = new_value;
 		self
 	}
-
+	#[allow(dead_code)]
 	pub fn poomp_delay(&mut self, new_value: Option<f32>) -> &mut Self {
 		self.poomp_delay = new_value;
 		self
 	}
-
+	#[allow(dead_code)]
 	pub fn assets_directory_path(&mut self, new_value: Option<String>) -> &mut Self {
 		self.assets_directory_path = new_value;
 		self

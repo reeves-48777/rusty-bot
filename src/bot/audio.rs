@@ -1,4 +1,8 @@
-use std::{collections::HashMap , fs, sync::Arc};
+use std::{
+	fs, fs::DirEntry,
+	sync::Arc,
+	io, collections::HashSet
+};
 
 use serenity::{
 	async_trait, 
@@ -7,7 +11,7 @@ use serenity::{
 			channel::Message,
 			id::{ChannelId, GuildId}
 		},
-		prelude::{TypeMapKey, Mutex}
+		prelude::{TypeMapKey, RwLock, Mutex}
 };
 
 use songbird::{
@@ -23,7 +27,7 @@ use songbird::{
 		self,
 		Input,
 		cached::{Compressed, Memory}
-	}
+	},
 };
 
 
@@ -48,23 +52,80 @@ impl From<&CachedSound> for Input {
 	}
 }
 
+impl From<CachedSound> for Input {
+	fn from(obj: CachedSound) -> Self {
+		use CachedSound::*;
+		match obj {
+			Compressed(comp) => comp.new_handle()
+				.into(),
+			Uncompressed(uncomp) => uncomp.new_handle()
+				.try_into()
+				.expect("Failed to create decode for memory source")
+		}
+	}
+}
+
 type SoundQueue = Vec<CachedSound>;
 
-pub async fn init_assets_in_cache() -> HashMap<String, CachedSound> {
-	let mut cache_map = HashMap::new();
-    for file in fs::read_dir(ASSETS_DIR).expect("assets directory not found") {
-        let path = String::from(file.unwrap().path().to_str().unwrap());
-        let source = Compressed::new(
-            input::ffmpeg(&path).await.expect("File not found"),
-            Bitrate::Max
-        ).expect("These parameters are well defined");
-        let _ = source.raw.spawn_loader();
-        // cache_map.insert(path.split('\\').last().unwrap().into(), CachedSound::Compressed(source));
-		cache_map.insert(path, CachedSound::Compressed(source));
-    }
+// struct SoundQueue {
+// 	sound: Option<CachedSound>,
+// }
+
+// impl SoundQueue {
+// 	fn new() -> Self {
+// 		Self {
+// 			sound: None,
+// 		}
+// 	}
+// }
+
+// impl Iterator for SoundQueue {
+// 	type Item = CachedSound;
+
+// 	fn next(&mut self) -> 
+// }
+fn gen_index(len: usize) -> usize {
+	rand::random::<usize>() % len
+}
+
+
+// on récupere les son depuis le dossier assets
+// on les met en cache dans une hashmap avec le nom du fichier en clé et son binaire en valeur
+pub async fn init_assets_in_cache() -> SoundQueue {
+	let dir = fs::read_dir(ASSETS_DIR).expect("assets directory in projet");
+	let dir: Vec<io::Result<DirEntry>> = dir.collect();
+	let dir_len = dir.len();
+
+	// on init les queues
+	let mut cache_map = Vec::with_capacity(dir_len);
+	let mut indexes = HashSet::<usize>::with_capacity(dir_len);
+	
+	// generation de la suite de nombre aléatoires uniques
+	for _i in 0..dir_len {
+		let mut uniq = false;
+		while !uniq {
+			let index = gen_index(dir_len);
+			if indexes.insert(index) {
+				println!("using index: {}", index);
+				uniq = true;
+			}
+		}
+	}
+	// génération des files dans un ordre aléatoire
+	for index in indexes {
+		let path = String::from(dir[index].as_ref().unwrap().path().to_str().unwrap());
+		println!("adding file: {} to the cache map", &path);
+		let data = Compressed::new(
+			input::ffmpeg(&path).await.expect("File not found"),
+			Bitrate::Auto
+		).expect("These parameters are well defined");
+		let _ = data.raw.spawn_loader();
+		cache_map.push(CachedSound::Compressed(data));
+	}
     cache_map
 }
 
+/// structure utilisée pour gérer l'action à effectuer à la fin des sons joués
 struct EndPlaySound {
 	ctx: Context,
 	msg: Message,
@@ -78,6 +139,7 @@ impl VoiceEventHandler for EndPlaySound {
 	}
 }
 
+// on quitte le channel dans lequel on est
 async fn leave(ctx: &Context, msg: &Message) {
 	let guild = msg.guild(&ctx.cache).await.unwrap();
 	let guild_id = guild.id;
@@ -101,7 +163,7 @@ async fn leave(ctx: &Context, msg: &Message) {
 pub struct SoundStore;
 
 impl TypeMapKey for SoundStore {
-	type Value = Arc<Mutex<HashMap<String, CachedSound>>>;
+	type Value = Arc<RwLock<SoundQueue>>;
 }
 
 pub struct AudioManager<'a> {
@@ -112,7 +174,6 @@ pub struct AudioManager<'a> {
 	handler_lock: Option<Arc<Mutex<Call>>>,
 	manager: Option<Arc<Songbird>>,
 	success_reader: Option<Result<(), JoinError>>,
-	sound_queues: Vec<SoundQueue>,
 }
 
 impl AudioManager<'_> {
@@ -125,7 +186,6 @@ impl AudioManager<'_> {
 			handler_lock: None,
 			manager: None,
 			success_reader: None,
-			sound_queues: Vec::new(),
 		}
 	}
 	pub async fn init<'a>(&mut self) {
@@ -134,25 +194,30 @@ impl AudioManager<'_> {
 		let guild = msg.guild(ctx.cache.clone()).await.unwrap();
 		let guild_id = guild.id;
 
+		// on recupere l'id du channel sur lequel l'utilisateur qui apelle la commande est
 		let channel_id = guild
 			.voice_states.get(&msg.author.id)
 			.and_then(|voice_state| voice_state.channel_id);
 
+		// si l'id existe (l'utilisateur est dans un channel), on s'y connecte
 		match channel_id {
 			Some(channel) => {
 				self.connect_to = Some(channel)
 			},
+			// sinon le bot renvoie un message d'erreur / d'explication
 			None => {
 				msg.channel_id.say(&ctx.http, "You need to be in a voice channel to call this command (for now)").await.unwrap();
 			}
 		}
 
-		if let Some(channel) = channel_id {
-			self.connect_to = Some(channel)
-		}
+		// on update le guild-id
 		self.guild_id = Some(guild_id);
 	}
 
+	/// rejoindre un channel puis on initialise:
+	/// - les valeurs du lock (thread safety)
+	/// - le manager de songbird (pour jouer des fichiers audio)
+	/// - le success_reader (valeur de callback si le bot a pu se connecter/rejoindre le channel)
 	pub async fn join(&mut self) {
 		let manager = songbird::get(self.ctx).await
 			.expect("Songbird voice client registered at initialization").clone();
@@ -168,18 +233,27 @@ impl AudioManager<'_> {
 		self.success_reader = Some(success_reader);
 	}
 
+	/// On joue un son random depuis les sources
 	pub async fn play_random_asset(&self) {
 		let handler_lock = self.handler_lock.as_ref().unwrap();
+		// on lock pour éviter de modifier les données en meme temps qu'on les lit
 		let mut handler = handler_lock.lock().await;
 
 		println!("Joined Voice Chan: {}", self.connect_to.unwrap().name(&self.ctx.cache).await.unwrap());
 
-		let sources_lock = self.ctx.data.read().await.get::<SoundStore>().cloned().expect("Sound cache was initialized at startup");
-		// let sources_lock_for_evt = sources_lock.clone();
-		let sources = sources_lock.lock().await;
-		let source = sources.get(fetch_random_from_sources(&sources)).expect("handle placed into cache at startup");
+		let queue_lock = {
+			let data_read = self.ctx.data.read().await;
+			data_read.get::<SoundStore>().expect("ConfigStore in TypeMap").clone()
+		};
 
-		let sound = handler.play_source(source.into());
+		#[allow(unused_assignments)]
+		let mut source = None;
+		{
+			let mut queue = queue_lock.write().await;
+			source = queue.pop();
+		}
+
+		let sound = handler.play_source(source.unwrap().into());
 		let _ = sound.set_volume(1.0);
 
 		let _ = sound.add_event(
@@ -189,11 +263,12 @@ impl AudioManager<'_> {
 				msg: self.msg.clone(),
 			},	 
 		);
+
+
 	}
 }
-fn fetch_random_from_sources(sources: &HashMap<String, CachedSound>) -> &String {
-	let keys: Vec<&String> = sources.keys().collect();
-	let source_name = keys[rand::random::<usize>() % keys.len()];
-	println!("Using file: {}", source_name);
-	source_name
-}
+
+
+// si l'audio Manager jouer un son 						=> etat = playing
+// si l'audio manager attend un nouveau call de poomp 	=> etat = pending/waiting
+// si l'audio manager ne fait rien 						=> etat = idle

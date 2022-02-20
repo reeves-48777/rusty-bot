@@ -1,6 +1,6 @@
 // ---------- IMPORTS ---------- //
 use std::{collections::HashSet, env, sync::Arc};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{RwLock};
 use songbird::SerenityInit;
 
 use serenity::Result as SerenityResult;
@@ -68,7 +68,7 @@ async fn main() {
         let audio_map = init_assets_in_cache().await;
         let bot_config = ConfigBuilder::new().build();
 
-        data.insert::<SoundStore>(Arc::new(Mutex::new(audio_map)));
+        data.insert::<SoundStore>(Arc::new(RwLock::new(audio_map)));
         data.insert::<ConfigStore>(Arc::new(RwLock::new(bot_config)));
     }
 
