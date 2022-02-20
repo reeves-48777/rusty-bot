@@ -59,6 +59,18 @@ async fn set(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 				bot_conf.set_flood_delay(value.parse().unwrap());
 			}
 		},
+		"wait_delay" => {
+			println!("calling wait_delay comamand");
+			let bot_conf_lock = {
+				let data_read = ctx.data.read().await;
+				data_read.get::<ConfigStore>().expect("ConfigStore in TypeMap").clone()
+			};
+			{
+				let mut bot_conf = bot_conf_lock.write().await;
+				bot_conf.set_poomp_delay(value.parse().unwrap());
+			}
+
+		},
 		_ => {
 			msg.channel_id.say(&ctx.http, format!("No setting named '{}' is available", value)).await?;
 		}
@@ -85,7 +97,8 @@ async fn show(ctx: &Context, msg: &Message) -> CommandResult {
 					e.fields(vec![
 						("clear_command_calls", format!("{}", bot_conf.get_clear_calls()), false),
 						("muted", format!("{}", bot_conf.muted()), false),
-						("flood_delay", format!("{} ms", bot_conf.get_flood_delay()), false)
+						("flood_delay", format!("{} seconds", bot_conf.get_flood_delay()), false),
+						("poomp_delay", format!("{} seconds", bot_conf.get_poomp_delay()), false),
 					]);
 					e.color(0x33ddff);
 

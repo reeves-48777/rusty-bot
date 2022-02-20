@@ -20,7 +20,7 @@ use commands::general::GENERAL_GROUP;
 
 use hooks::*;
 
-use bot::audio::{SoundStore, init_assets_in_cache};
+use bot::audio::{SoundStore, SoundCache, ASSETS_DIR};
 
 
 #[tokio::main]
@@ -65,7 +65,9 @@ async fn main() {
     {
         let mut data = client.data.write().await;
 
-        let audio_map = init_assets_in_cache().await;
+        let mut audio_map = SoundCache::new();
+        audio_map.init(String::from(ASSETS_DIR)).await;
+
         let bot_config = ConfigBuilder::new().build();
 
         data.insert::<SoundStore>(Arc::new(RwLock::new(audio_map)));

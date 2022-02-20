@@ -1,7 +1,7 @@
 use std::{
 	fs, fs::DirEntry,
 	sync::Arc,
-	io, collections::HashSet
+	io, collections::HashSet,
 };
 
 use serenity::{
@@ -31,7 +31,7 @@ use songbird::{
 };
 
 
-const ASSETS_DIR: &str = "assets";
+pub const ASSETS_DIR: &str = "assets";
 
 #[derive(Debug)]
 pub enum CachedSound {
@@ -51,7 +51,6 @@ impl From<&CachedSound> for Input {
 		}
 	}
 }
-
 impl From<CachedSound> for Input {
 	fn from(obj: CachedSound) -> Self {
 		use CachedSound::*;
@@ -67,62 +66,85 @@ impl From<CachedSound> for Input {
 
 type SoundQueue = Vec<CachedSound>;
 
-// struct SoundQueue {
-// 	sound: Option<CachedSound>,
-// }
+pub struct SoundCache {
+	queues: (SoundQueue, SoundQueue),
+	directory: Vec<io::Result<DirEntry>>,
+	directory_size: usize,
+}
 
-// impl SoundQueue {
-// 	fn new() -> Self {
-// 		Self {
-// 			sound: None,
-// 		}
-// 	}
-// }
+impl SoundCache {
+	pub fn new() -> Self {
+		Self {
+			queues: (Vec::new(), Vec::new()),
+			directory: Vec::new(),
+			directory_size: 0,
+		}
+	}
+	pub async fn init(&mut self, dir_path: String) {
+		let (dir,dir_len) = get_dir_len(dir_path);
+		self.queues.0 = gen_queue(dir_len, &dir).await;
+		self.queues.1 = gen_queue(dir_len, &dir).await;
+	}
 
-// impl Iterator for SoundQueue {
-// 	type Item = CachedSound;
+	pub async fn read(&mut self) -> Option<CachedSound> {
+		if self.queues.0.len() > 0 {
+			if self.queues.1.len() == 0 {
+				println!("Queue 2 is empty regenerating ...");
+				self.queues.1 = gen_queue(self.directory_size, &self.directory).await;
+			}
+			Some(self.queues.0.pop().unwrap())
+		} else {
+			println!("Queue 1 is empty regenerating ...");
+			self.queues.0 = gen_queue(self.directory_size, &self.directory).await;
+			Some(self.queues.1.pop().unwrap())
+		}
+	}
 
-// 	fn next(&mut self) -> 
-// }
-fn gen_index(len: usize) -> usize {
-	rand::random::<usize>() % len
+}
+
+fn get_dir_len(directory_path: String) -> (Vec<io::Result<DirEntry>>, usize) {
+	println!("Getting the size of the directory named: {}...", directory_path);
+	let dir = fs::read_dir(directory_path).expect("Assets directory specified or default 'assets' directory present in the project");
+	let dir: Vec<io::Result<DirEntry>> = dir.collect();
+	let dir_len = dir.len();
+	println!("DirSize = {}", &dir_len);
+	return (dir, dir_len)
 }
 
 
-// on récupere les son depuis le dossier assets
-// on les met en cache dans une hashmap avec le nom du fichier en clé et son binaire en valeur
-pub async fn init_assets_in_cache() -> SoundQueue {
-	let dir = fs::read_dir(ASSETS_DIR).expect("assets directory in projet");
-	let dir: Vec<io::Result<DirEntry>> = dir.collect();
-	let dir_len = dir.len();
-
-	// on init les queues
-	let mut cache_map = Vec::with_capacity(dir_len);
-	let mut indexes = HashSet::<usize>::with_capacity(dir_len);
-	
-	// generation de la suite de nombre aléatoires uniques
-	for _i in 0..dir_len {
+fn gen_random_order(range: usize) -> HashSet<usize> {
+	println!("Generating random order ...");
+	let mut indexes: HashSet<usize> = HashSet::with_capacity(range);
+	for _ in 0..range {
 		let mut uniq = false;
 		while !uniq {
-			let index = gen_index(dir_len);
+			let index = rand::random::<usize>() % range;
 			if indexes.insert(index) {
-				println!("using index: {}", index);
 				uniq = true;
 			}
 		}
 	}
-	// génération des files dans un ordre aléatoire
+	indexes
+}
+
+async fn gen_queue(len: usize, dir: &Vec<io::Result<DirEntry>>) -> SoundQueue {
+	println!("Generating queue ...");
+	let mut queue = Vec::with_capacity(len);
+	let indexes = gen_random_order(len);
+	
 	for index in indexes {
-		let path = String::from(dir[index].as_ref().unwrap().path().to_str().unwrap());
-		println!("adding file: {} to the cache map", &path);
-		let data = Compressed::new(
-			input::ffmpeg(&path).await.expect("File not found"),
-			Bitrate::Auto
-		).expect("These parameters are well defined");
-		let _ = data.raw.spawn_loader();
-		cache_map.push(CachedSound::Compressed(data));
+		let file_path = String::from(dir[index].as_ref().unwrap().path().to_str().unwrap());
+			println!("adding file: {} to the cache map", file_path.split('/').last().unwrap());
+			// there should be only mp3 audio files in the directory so we build compressed files
+			let data = Compressed::new(
+				input::ffmpeg(&file_path).await.expect("File in assets directory"),
+				Bitrate::Auto
+			).expect("These parameters are well defined");
+
+			let _ = data.raw.spawn_loader();
+			queue.push(CachedSound::Compressed(data));
 	}
-    cache_map
+	queue
 }
 
 /// structure utilisée pour gérer l'action à effectuer à la fin des sons joués
@@ -163,7 +185,7 @@ async fn leave(ctx: &Context, msg: &Message) {
 pub struct SoundStore;
 
 impl TypeMapKey for SoundStore {
-	type Value = Arc<RwLock<SoundQueue>>;
+	type Value = Arc<RwLock<SoundCache>>;
 }
 
 pub struct AudioManager<'a> {
@@ -241,7 +263,7 @@ impl AudioManager<'_> {
 
 		println!("Joined Voice Chan: {}", self.connect_to.unwrap().name(&self.ctx.cache).await.unwrap());
 
-		let queue_lock = {
+		let cache_lock = {
 			let data_read = self.ctx.data.read().await;
 			data_read.get::<SoundStore>().expect("ConfigStore in TypeMap").clone()
 		};
@@ -249,22 +271,27 @@ impl AudioManager<'_> {
 		#[allow(unused_assignments)]
 		let mut source = None;
 		{
-			let mut queue = queue_lock.write().await;
-			source = queue.pop();
+			let mut cache = cache_lock.write().await;
+			source = cache.read().await;
 		}
-
-		let sound = handler.play_source(source.unwrap().into());
-		let _ = sound.set_volume(1.0);
-
-		let _ = sound.add_event(
-			Event::Track(TrackEvent::End),
-			EndPlaySound {
-				ctx: self.ctx.clone(),
-				msg: self.msg.clone(),
-			},	 
-		);
-
-
+		
+		match source {
+			Some(data) => {
+				let sound = handler.play_source(data.into());
+				let _ = sound.set_volume(1.0);
+		
+				let _ = sound.add_event(
+					Event::Track(TrackEvent::End),
+					EndPlaySound {
+						ctx: self.ctx.clone(),
+						msg: self.msg.clone(),
+					},	 
+				);
+			}
+			None => {
+				leave(self.ctx, self.msg).await;
+			}
+		}
 	}
 }
 
