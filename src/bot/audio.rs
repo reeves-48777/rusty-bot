@@ -64,39 +64,44 @@ impl From<CachedSound> for Input {
 	}
 }
 
-type SoundQueue = Vec<CachedSound>;
+type SoundBuffer = Vec<CachedSound>;
 
-pub struct SoundCache {
-	queues: (SoundQueue, SoundQueue),
+pub struct SoundCache<'lifea> {
+	front_buffer: Option<&'lifea SoundBuffer>,
+	back_buffer: SoundBuffer,
 	directory: Vec<io::Result<DirEntry>>,
 	directory_size: usize,
 }
 
-impl SoundCache {
+impl <'lifea> SoundCache<'lifea> {
 	pub fn new() -> Self {
 		Self {
-			queues: (Vec::new(), Vec::new()),
+			front_buffer: None,
+			back_buffer: Vec::new(),
 			directory: Vec::new(),
 			directory_size: 0,
 		}
 	}
 	pub async fn init(&mut self, dir_path: String) {
 		let (dir,dir_len) = get_dir_len(dir_path);
-		self.queues.0 = gen_queue(dir_len, &dir).await;
-		self.queues.1 = gen_queue(dir_len, &dir).await;
+		self.front_buffer = gen_buffer(dir_len, &dir).await;
+		self.back_buffer = gen_buffer(dir_len, &dir).await;
 	}
 
 	pub async fn read(&mut self) -> Option<CachedSound> {
-		if self.queues.0.len() > 0 {
-			if self.queues.1.len() == 0 {
-				println!("Queue 2 is empty regenerating ...");
-				self.queues.1 = gen_queue(self.directory_size, &self.directory).await;
+		if self.front_buffer.len() > 0 {
+			if self.back_buffer.len() == 0 {
+				println!("Back buffer is empty regenerating ...");
+				self.back_buffer= gen_buffer(self.directory_size, &self.directory).await;
 			}
-			Some(self.queues.0.pop().unwrap())
+			Some(self.front_buffer.pop().unwrap())
 		} else {
-			println!("Queue 1 is empty regenerating ...");
-			self.queues.0 = gen_queue(self.directory_size, &self.directory).await;
-			Some(self.queues.1.pop().unwrap())
+			println!("Front buffer is empty regenerating ...");
+			// self.buffers.0 = gen_buffer(self.directory_size, &self.directory).await;
+			// Some(self.buffers.1.pop().unwrap()
+			self.front_buffer = self.front_buffer;
+			self.back_buffer = gen_buffer(self.directory_size, &self.directory).await;
+			Some(self.front_buffer.pop().unwrap())
 		}
 	}
 
@@ -127,14 +132,14 @@ fn gen_random_order(range: usize) -> HashSet<usize> {
 	indexes
 }
 
-async fn gen_queue(len: usize, dir: &Vec<io::Result<DirEntry>>) -> SoundQueue {
-	println!("Generating queue ...");
+async fn gen_buffer(len: usize, dir: &Vec<io::Result<DirEntry>>) -> SoundBuffer {
+	println!("Generating sound buffer ...");
 	let mut queue = Vec::with_capacity(len);
 	let indexes = gen_random_order(len);
 	
 	for index in indexes {
 		let file_path = String::from(dir[index].as_ref().unwrap().path().to_str().unwrap());
-			println!("adding file: {} to the cache map", file_path.split('/').last().unwrap());
+			println!("adding file: {} to the cache", file_path.split('/').last().unwrap());
 			// there should be only mp3 audio files in the directory so we build compressed files
 			let data = Compressed::new(
 				input::ffmpeg(&file_path).await.expect("File in assets directory"),
