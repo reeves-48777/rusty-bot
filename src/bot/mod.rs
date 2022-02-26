@@ -1,46 +1,41 @@
+pub mod core;
+
 mod traits;
 
 use chrono::Utc;
 use traits::Plugin;
 use std::env;
-use std::rc::{Rc, Weak};
 
 type UUID = i64;
 
+#[allow(dead_code)]
 /// struct that contains the bot logic
-#[derive(Clone)]
 pub struct Bot {
 	id: UUID,
-	token: String,
-	plugins: Rc<Vec<Box<dyn Plugin>>>
+	token: Box<String>,
+	plugins: Vec<Box<dyn Plugin>>
 }
 
 impl Bot {
-	/// Inits the bot
-	/// with a new ID
-	/// and an empty Vector of Plugin
-	fn new() -> Self {
+	/// Inits the bot with a new ID and an empty Vector of Plugin
+	pub fn new(token_env_var: &str) -> Self {
 		Self {
 			id: Utc::now().timestamp_nanos(),
-			token: String::from("undefined"),
-			plugins: Rc::new(Vec::<Box<dyn Plugin>>::new()),
+			token: Box::new(env::var(token_env_var).unwrap()),
+			plugins: Vec::new(),
 		}
-	}
-	fn with_token(&mut self, token: &str) -> Self {
-		self.token = env::var(token).unwrap();
-		*self
-	}
-	fn register(&mut self, plugin: Box<dyn Plugin>) -> Self {
-		self.plugins.push(plugin);
-		*self
-	}
-
-	pub fn create_bot(token_env_var :&str) -> Self {
-		Self::new().with_token(token_env_var)
 	}
 
 	/// the bot now have all the informations it needs and will run
 	pub fn run(&self) {
-		todo!()
+		for item in self.plugins.iter() {
+			item.run();
+		}
+	}
+
+	/// add the passed plugin to the plugins vec
+	pub fn register(&mut self, plugin: impl Plugin + 'static ) -> &mut Self {
+		self.plugins.push(Box::new(plugin));
+		self
 	}
 }
