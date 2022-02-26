@@ -1,20 +1,46 @@
-pub mod audio;
-pub mod config;
-pub mod storage;
-pub mod handler;
+mod traits;
 
-pub use audio::AudioManager;
-pub use config::{ ConfigBuilder, ConfigStore, Configuration };
-pub use handler::Handler;
+use chrono::Utc;
+use traits::Plugin;
+use std::env;
+use std::rc::{Rc, Weak};
 
-pub struct Bot<'a> {
-	audio_manager: AudioManager<'a>,
-	handler: Handler,
-	config: Configuration
+type UUID = i64;
+
+/// struct that contains the bot logic
+#[derive(Clone)]
+pub struct Bot {
+	id: UUID,
+	token: String,
+	plugins: Rc<Vec<Box<dyn Plugin>>>
 }
 
-// TODO add a StorageManager struct that will fetch assets from the google drive api
-// NOTE this is the best way since the repos will be lighter and contains less bloat
-// each file will be accessible by all bots that will call this and the management of those will be better
-// NOTE Imo it is better to do a lookup on this directory so that each time it will be modified the bot will perform
-// a hot reload of the assets (like removing/adding the concerned  file from/to the cache)
+impl Bot {
+	/// Inits the bot
+	/// with a new ID
+	/// and an empty Vector of Plugin
+	fn new() -> Self {
+		Self {
+			id: Utc::now().timestamp_nanos(),
+			token: String::from("undefined"),
+			plugins: Rc::new(Vec::<Box<dyn Plugin>>::new()),
+		}
+	}
+	fn with_token(&mut self, token: &str) -> Self {
+		self.token = env::var(token).unwrap();
+		*self
+	}
+	fn register(&mut self, plugin: Box<dyn Plugin>) -> Self {
+		self.plugins.push(plugin);
+		*self
+	}
+
+	pub fn create_bot(token_env_var :&str) -> Self {
+		Self::new().with_token(token_env_var)
+	}
+
+	/// the bot now have all the informations it needs and will run
+	pub fn run(&self) {
+		todo!()
+	}
+}
