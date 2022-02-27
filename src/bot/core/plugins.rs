@@ -1,6 +1,7 @@
+use std::fmt::Display;
+
 use super::super::traits::Plugin;
-use super::super::core::infos::BotInfo;
-use super::super::Bot;
+use super::super::core::infos::Info;
 
 pub struct CommonPlugin;
 impl Plugin for CommonPlugin {
@@ -9,18 +10,19 @@ impl Plugin for CommonPlugin {
 	}
 }
 
-pub struct InfoPlugin {
-	bot_infos: BotInfo,
+pub struct InfoPlugin<T> {
+	infos: Info<T>,
 }
 
-impl InfoPlugin {
-	fn new(bot: Bot) -> Self {
+impl<T> InfoPlugin<T>
+where T: Display {
+	fn new(src: T) -> Self {
 		Self {
-			bot_infos: BotInfo::new(bot)
+			infos: Info::new(src)
 		}
 	}
 }
-impl Plugin for InfoPlugin {
+impl<T> Plugin for InfoPlugin<T> {
 	fn run(&self) {
 		println!("Informations::::::")
 	}

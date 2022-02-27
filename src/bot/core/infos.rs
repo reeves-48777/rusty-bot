@@ -1,25 +1,19 @@
 use std::{
 	rc::Rc,
-	fmt::{
-		self,
-		Display
-	}
+	fmt::Display
 };
-use super::super::Bot;
-pub struct BotInfo {
-	bot: Rc<Bot>
+pub struct Info<T> {
+	info_src: Rc<T>,
 }
 
-impl BotInfo {
-	pub fn new(bot: Bot) -> Self {
+impl<T> Info<T> 
+where T: Display {
+	pub fn new(src: T) -> Self{
 		Self {
-			bot: Rc::from(bot)
+			info_src: Rc::new(src)
 		}
 	}
-}
-
-impl Display for BotInfo {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "id:\t{}\ntoken:\t{}\nplugins:\t{}", self.bot.id, self.bot.token, self.bot.plugins.len())
+	pub fn display_infos(&self) {
+		println!("{}", self.info_src)
 	}
 }

@@ -2,11 +2,10 @@ mod bot;
 
 use bot::Bot;
 use bot::core::CommonPlugin;
-use bot::core::InfoPlugin;
 
 fn main() {
-    let _bot = Bot::new("DISCORD_BOT_TOKEN")
+    // common plugin may have to be initialized when the bot is
+    let _ = Bot::new("DISCORD_BOT_TOKEN")
         .register(CommonPlugin)
-        .register(InfoPlugin)
         .run();
 }

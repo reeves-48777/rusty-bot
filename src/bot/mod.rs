@@ -2,9 +2,11 @@ pub mod core;
 
 mod traits;
 
+use self::traits::Plugin;
+use std::fmt::{ self, Display};
 use chrono::Utc;
-use traits::Plugin;
 use std::env;
+
 
 type UUID = i64;
 
@@ -37,5 +39,11 @@ impl Bot {
 	pub fn register(&mut self, plugin: impl Plugin + 'static ) -> &mut Self {
 		self.plugins.push(Box::new(plugin));
 		self
+	}
+}
+
+impl Display for Bot {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f,"Informations...\nid;\t{}\ntoken:\t{}\nplugins:\t{}", self.id, self.token, self.plugins.len())
 	}
 }
